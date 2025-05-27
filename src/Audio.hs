@@ -12,7 +12,7 @@ import Miso.String (MisoString, ms)
 -------------------------------------------------------------------------------
 
 newtype Audio = Audio JSVal
-  deriving (ToJSVal, Eq)
+  deriving (ToJSVal)
 
 newAudio :: MisoString -> JSM Audio
 newAudio url = do
@@ -41,12 +41,13 @@ pause (Audio a) = void $ a # "pause" $ ()
 
 -- TODO volume is both a getter and a setter, in the JS API -> setVolume + getVolume ?
 
-instance Eq JSVal where
-  JSVal ref1 == JSVal ref2 = ref1 == ref2
-
 ended :: Audio -> JSM Bool
 ended (Audio a) = do
   value <- a ! "ended"
   fromMaybe False <$> fromJSVal value
 
+duration :: Audio -> JSM Double
+duration (Audio a) = do
+  value <- a ! "duration"
+  fromMaybe 0 <$> fromJSVal value
 
