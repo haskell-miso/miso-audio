@@ -10,12 +10,15 @@ import Miso.String (MisoString)
 
 import Audio
 
+-- TODO volume slider
+-- TODO song info
+
 ----------------------------------------------------------------------
 -- parameters
 ----------------------------------------------------------------------
 
-playlistFilenames :: [MisoString]
-playlistFilenames =
+thePlaylist :: [MisoString]
+thePlaylist =
   [ "roblox-minecraft-fortnite-video-game-music-299145.mp3"
   , "kids-game-gaming-background-music-297733.mp3"
   , "puzzle-game-bright-casual-video-game-music-249202.mp3"
@@ -25,46 +28,57 @@ playlistFilenames =
 -- types
 ----------------------------------------------------------------------
 
-data Model = Model
-  { _lengthPlaylist :: Int
-  , _playing :: Maybe Audio
+data Song = Song
+  { _songName :: MisoString
+  , _songAudio :: Audio
   } deriving (Eq)
 
-newtype Assets = Assets
-  { _playlist :: [(MisoString, Audio)]
-  }
+data Model = Model
+  { _modelPlaylist :: [Song]
+  , _modelPlaying :: Maybe Audio
+  , _modelSongInfo :: MisoString
+  } deriving (Eq)
 
-newtype Action 
+data Action 
   = ActionPlay Audio
+  | ActionInfo Song
 
 ----------------------------------------------------------------------
 -- lenses
 ----------------------------------------------------------------------
 
-lengthPlaylist :: Lens Model Int
-lengthPlaylist = lens _lengthPlaylist $ \record field -> record { _lengthPlaylist = field }
+songName :: Lens Song MisoString
+songName = lens _songName $ \record field -> record { _songName = field }
 
-playing :: Lens Model (Maybe Audio)
-playing = lens _playing $ \record field -> record { _playing = field }
+songAudio :: Lens Song Audio
+songAudio = lens _songAudio $ \record field -> record { _songAudio = field }
 
-playlist :: Lens Assets [(MisoString, Audio)]
-playlist = lens _playlist $ \record field -> record { _playlist = field }
+modelPlaylist :: Lens Model [Song]
+modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist = field }
+
+modelPlaying :: Lens Model (Maybe Audio)
+modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = field }
+
+modelSongInfo :: Lens Model MisoString
+modelSongInfo = lens _modelSongInfo $ \record field -> record { _modelSongInfo = field }
 
 ----------------------------------------------------------------------
 -- view handler
 ----------------------------------------------------------------------
 
-handleView :: Assets -> Model -> View Action
-handleView assets model = div_ [] 
-  [ ul_ [] (map fmtSong $ assets^.playlist)
+handleView :: Model -> View Action
+handleView model = div_ [] 
+  [ ul_ [] (map fmtSong $ model^.modelPlaylist)
+  , p_ [] [ text (model^.modelSongInfo) ]
   ]
   where
 
     playOrPause audio = 
-      if model^.playing == Just audio then "pause" else "play"
+      if model^.modelPlaying == Just audio then "pause" else "play"
 
-    fmtSong (name, audio) = li_ [] 
-      [ button_ [ onClick (ActionPlay audio) ] [ text (playOrPause audio) ]
+    fmtSong song@(Song name audio) = li_ [] 
+      [ button_ [ onClick (ActionInfo song) ] [ text "info" ]
+      , button_ [ onClick (ActionPlay audio) ] [ text (playOrPause audio) ]
       , text " "
       , text name 
       ]
@@ -73,16 +87,20 @@ handleView assets model = div_ []
 -- update handler
 ----------------------------------------------------------------------
 
-handleUpdate :: Assets -> Action -> Effect Model Action
+handleUpdate :: Action -> Effect Model Action
 
-handleUpdate _assets (ActionPlay audio) = do
-  mCurrent <- use playing
-  forM_ mCurrent $ \current -> io_ (pause current)
-  if mCurrent == Just audio
-    then playing .= Nothing
+handleUpdate (ActionPlay audio) = do
+  mCurrentAudio <- use modelPlaying
+  forM_ mCurrentAudio $ \currentAudio -> io_ (pause currentAudio)
+  if mCurrentAudio == Just audio
+    then modelPlaying .= Nothing
     else do
-      playing .= Just audio
+      modelPlaying .= Just audio
       io_ $ play audio
+
+handleUpdate (ActionInfo song) = 
+  modelSongInfo .= song^.songName 
+  -- TODO paused, ended...
 
 ----------------------------------------------------------------------
 -- main
@@ -90,12 +108,12 @@ handleUpdate _assets (ActionPlay audio) = do
 
 main :: IO ()
 main = run $ do
-  assets <- Assets . zip playlistFilenames <$> traverse newAudio playlistFilenames
-  let model = Model (length $ assets^.playlist) Nothing
+  songs <- zipWith Song thePlaylist <$> traverse newAudio thePlaylist
+  let model = Model songs Nothing ""
   startComponent Component
     { model = model
-    , update = handleUpdate assets
-    , view = handleView assets
+    , update = handleUpdate
+    , view = handleView
     , subs = []
     , events = defaultEvents
     , styles = []
