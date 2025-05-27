@@ -2,10 +2,11 @@
 
 module Main where
 
+import Control.Monad (forM_)
 import Language.Javascript.JSaddle (JSM)
 import Miso 
 import Miso.Lens
-import Miso.String
+import Miso.String (MisoString)
 
 import Audio
 
@@ -24,32 +25,49 @@ playlistFilenames =
 -- types
 ----------------------------------------------------------------------
 
-newtype Model = Model
-  { _indexPlaylist :: Int
+data Model = Model
+  { _lengthPlaylist :: Int
+  , _playing :: Maybe Audio
   } deriving (Eq)
 
-indexPlaylist :: Lens Model Int
-indexPlaylist = lens _indexPlaylist $ \record field -> record { _indexPlaylist = field }
-
 newtype Assets = Assets
-  { _playlist :: [Audio]
+  { _playlist :: [(MisoString, Audio)]
   }
 
-playlist :: Lens Assets [Audio]
-playlist = lens _playlist $ \record field -> record { _playlist = field }
+newtype Action 
+  = ActionPlay Audio
 
-data Action 
-  = ActionReset
-  | ActionPlaylist Bool
+----------------------------------------------------------------------
+-- lenses
+----------------------------------------------------------------------
+
+lengthPlaylist :: Lens Model Int
+lengthPlaylist = lens _lengthPlaylist $ \record field -> record { _lengthPlaylist = field }
+
+playing :: Lens Model (Maybe Audio)
+playing = lens _playing $ \record field -> record { _playing = field }
+
+playlist :: Lens Assets [(MisoString, Audio)]
+playlist = lens _playlist $ \record field -> record { _playlist = field }
 
 ----------------------------------------------------------------------
 -- view handler
 ----------------------------------------------------------------------
 
 handleView :: Assets -> Model -> View Action
-handleView _assets _model = div_ [] 
-  [ p_ [] [ "TODO" ]
+handleView assets model = div_ [] 
+  [ ul_ [] (map fmtSong $ assets^.playlist)
   ]
+  where
+
+    playOrPause audio = 
+      if model^.playing == Just audio then "pause" else "play"
+
+    fmtSong (name, audio) = li_ [] 
+      [ button_ [ onClick (ActionPlay audio) ] [ text (playOrPause audio) ]
+      , text " "
+      , text name 
+      ]
 
 ----------------------------------------------------------------------
 -- update handler
@@ -57,37 +75,23 @@ handleView _assets _model = div_ []
 
 handleUpdate :: Assets -> Action -> Effect Model Action
 
-handleUpdate _assets ActionReset = 
-  io_ (consoleLog "TODO ActionReset")
-
-handleUpdate _assets (ActionPlaylist _isPaused) = 
-  io_ (consoleLog "TODO ActionPlaylist")
-
-{-
-handleUpdate res (ActionPlaylist isPaused) = 
-  when isPaused $ do
-    mIndexPlaylist %= \i -> mod (i+1) (length $ _resPlaylist res)
-    withPlaylist res $ \audio -> do
-      io_ $ volume audio 0.1
+handleUpdate _assets (ActionPlay audio) = do
+  mCurrent <- use playing
+  forM_ mCurrent $ \current -> io_ (pause current)
+  if mCurrent == Just audio
+    then playing .= Nothing
+    else do
+      playing .= Just audio
       io_ $ play audio
 
-withPlaylist :: Resources -> (Audio -> Effect Model Action) -> Effect Model Action
-withPlaylist res f = do
-  i <- use mIndexPlaylist
-  traverse_ f $ _resPlaylist res !? i
-  
 ----------------------------------------------------------------------
 -- main
 ----------------------------------------------------------------------
--}
-
-myGetTime :: JSM Double
-myGetTime = (* 0.001) <$> now
 
 main :: IO ()
 main = run $ do
-  assets <- Assets <$> traverse newAudio playlistFilenames
-  let model = Model 0
+  assets <- Assets . zip playlistFilenames <$> traverse newAudio playlistFilenames
+  let model = Model (length $ assets^.playlist) Nothing
   startComponent Component
     { model = model
     , update = handleUpdate assets
@@ -103,6 +107,5 @@ main = run $ do
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
 #endif
-
 
 
