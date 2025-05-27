@@ -29,7 +29,7 @@ Audio Object Properties:
 - [ ] currentTime 	        Sets or returns the current playback position in an audio (in seconds)
 - [ ] defaultMuted 	        Sets or returns whether the audio should be muted by default
 - [ ] defaultPlaybackRate 	Sets or returns whether the default playback speed of the audio
-- [ ] duration 	            Returns the length of an audio(in seconds)
+- [x] duration 	            Returns the length of an audio(in seconds)
 - [x] ended 	            Returns whether the playback of the audio has ended
 - [ ] error 	            Returns a MediaError object representing the error state of the audio
 - [ ] loop 	                Sets or returns whether the audio should start playing over again, every time it is finished

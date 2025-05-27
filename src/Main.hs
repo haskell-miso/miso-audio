@@ -1,9 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StrictData #-}
 
 module Main where
 
 import Control.Monad (forM_)
+import Data.Time.Clock
+import Data.Time.Format
 import Language.Javascript.JSaddle (JSVal(..))
 import Miso 
 import Miso.Lens
@@ -38,11 +39,11 @@ instance Eq Audio where
 data Song = Song
   { _songName :: MisoString
   , _songAudio :: Audio
-  , _songDuration :: Double
+  , _songDuration :: Maybe DiffTime
   } deriving (Eq)
 
 mkSong :: MisoString -> Audio -> Song
-mkSong name audio = Song name audio 0
+mkSong name audio = Song name audio Nothing
 
 data Model = Model
   { _modelPlaylist :: [Song]
@@ -52,8 +53,6 @@ data Model = Model
 data Action 
   = ActionPlay Song
   | ActionSetDuration MisoString Double
-  | ActionUpdateSong Song
-  | ActionInit
 
 ----------------------------------------------------------------------
 -- lenses
@@ -65,7 +64,7 @@ songName = lens _songName $ \record field -> record { _songName = field }
 songAudio :: Lens Song Audio
 songAudio = lens _songAudio $ \record field -> record { _songAudio = field }
 
-songDuration :: Lens Song Double
+songDuration :: Lens Song (Maybe DiffTime)
 songDuration = lens _songDuration $ \record field -> record { _songDuration = field }
 
 modelPlaylist :: Lens Model [Song]
@@ -87,9 +86,11 @@ handleView model = div_ []
     playOrPause audio = 
       if model^.modelPlaying == Just audio then "pause" else "play"
 
+    fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%H:%02M:%02S")
+
     fmtSong s@(Song name audio t) = li_ [] 
       [ button_ [ onClick (ActionPlay s) ] [ text (playOrPause audio) ]
-      , text (" " <> name <> " " <> ms t)
+      , text (" " <> name <> " " <> fmtDuration t)
       ]
 
 ----------------------------------------------------------------------
@@ -100,8 +101,7 @@ handleUpdate :: Action -> Effect Model Action
 
 handleUpdate (ActionPlay song) = do
   let audio = song^.songAudio
-  -- issue ActionInit
-
+  io (ActionSetDuration (song^.songName) <$> duration audio)
   mCurrentAudio <- use modelPlaying
   forM_ mCurrentAudio $ \currentAudio -> io_ (pause currentAudio)
   if mCurrentAudio == Just audio
@@ -109,20 +109,11 @@ handleUpdate (ActionPlay song) = do
     else do
       modelPlaying .= Just audio
       io_ $ play audio
-      -- issue (ActionUpdateSong song)
-      io (ActionSetDuration (song^.songName) <$> duration (song^.songAudio))
 
-handleUpdate (ActionUpdateSong song) = do
-  io (ActionSetDuration (song^.songName) <$> duration (song^.songAudio))
-
-handleUpdate (ActionSetDuration name t) = 
+handleUpdate (ActionSetDuration name t) = do
+  let dt = realToFrac t
   modelPlaylist %= map (\s -> 
-    if s^.songName == name then s else s & songDuration .~ t)
-
-handleUpdate ActionInit = do
-  songs <- use modelPlaylist
-  -- batch (pure . ActionUpdateSong <$> songs)
-  forM_ songs (issue . ActionUpdateSong)
+    if s^.songName /= name then s else s & songDuration ?~ dt)
 
 ----------------------------------------------------------------------
 -- main
@@ -142,7 +133,6 @@ main = run $ do
     , mountPoint = Nothing
     , logLevel = Off
     , initialAction = Nothing
-    -- , initialAction = Just ActionInit
     }
 
 #ifdef WASM
