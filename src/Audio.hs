@@ -24,6 +24,7 @@ newAudio url = do
 play :: Audio -> JSM ()
 play (Audio a) = void $ a # "play" $ ()
 
+-- TODO replace by setVolume/getVolume ? (volume is both a getter and a setter, in the JS API)
 volume :: Audio -> Double -> JSM ()
 volume (Audio a) = a <# "volume"
 
@@ -36,18 +37,28 @@ pause :: Audio -> JSM ()
 pause (Audio a) = void $ a # "pause" $ ()
 
 -------------------------------------------------------------------------------
--- new
+-- tested
 -------------------------------------------------------------------------------
-
--- TODO volume is both a getter and a setter, in the JS API -> setVolume + getVolume ?
-
-ended :: Audio -> JSM Bool
-ended (Audio a) = do
-  value <- a ! "ended"
-  fromMaybe False <$> fromJSVal value
 
 duration :: Audio -> JSM Double
 duration (Audio a) = do
   value <- a ! "duration"
   fromMaybe 0 <$> fromJSVal value
+
+setVolume :: Audio -> Double -> JSM ()
+setVolume (Audio a) = a <# "volume"
+
+getVolume :: Audio -> JSM Double
+getVolume (Audio a) = do
+  value <- a ! "volume"
+  fromMaybe 0 <$> fromJSVal value
+
+-------------------------------------------------------------------------------
+-- not tested
+-------------------------------------------------------------------------------
+
+ended :: Audio -> JSM Bool
+ended (Audio a) = do
+  value <- a ! "ended"
+  fromMaybe False <$> fromJSVal value
 

@@ -3,17 +3,17 @@
 module Main where
 
 import Control.Monad (forM_)
-import Data.Time.Clock
+import Data.Time.Clock (DiffTime)
 import Data.Time.Format
 import Language.Javascript.JSaddle (JSVal(..))
 import Miso 
 import Miso.Lens
-import Miso.String (MisoString, ms)
+import Miso.String (MisoString, ms, fromMisoStringEither)
 
 import Audio
 
--- TODO volume slider
 -- TODO update play/pause button dynamically (ended listener?)
+-- TODO toMisoString format (5.0e-2 -> 0.05)
 
 ----------------------------------------------------------------------
 -- parameters
@@ -48,11 +48,17 @@ mkSong name audio = Song name audio Nothing
 data Model = Model
   { _modelPlaylist :: [Song]
   , _modelPlaying :: Maybe Audio
+  , _modelVolume :: Double
   } deriving (Eq)
 
+mkModel :: [Song] -> Model
+mkModel playlist = Model playlist Nothing 1
+
 data Action 
-  = ActionPlay Song
+  = ActionAskPlay Song
   | ActionSetDuration MisoString Double
+  | ActionAskVolume MisoString
+  | ActionSetVolume Double
 
 ----------------------------------------------------------------------
 -- lenses
@@ -73,6 +79,9 @@ modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist =
 modelPlaying :: Lens Model (Maybe Audio)
 modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = field }
 
+modelVolume :: Lens Model Double
+modelVolume = lens _modelVolume $ \record field -> record { _modelVolume = field }
+
 ----------------------------------------------------------------------
 -- view handler
 ----------------------------------------------------------------------
@@ -80,18 +89,25 @@ modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = fi
 handleView :: Model -> View Action
 handleView model = div_ [] 
   [ ul_ [] (map fmtSong $ model^.modelPlaylist)
+  , div_ [] 
+      [ p_ [] [ text "volume: ", text vol ]
+      , input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
+                , value_ vol, onChange ActionAskVolume ]
+      ]
   ]
   where
 
     playOrPause audio = 
       if model^.modelPlaying == Just audio then "pause" else "play"
 
-    fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%H:%02M:%02S")
+    fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%02M:%02S")
 
     fmtSong s@(Song name audio t) = li_ [] 
-      [ button_ [ onClick (ActionPlay s) ] [ text (playOrPause audio) ]
+      [ button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause audio) ]
       , text (" " <> name <> " " <> fmtDuration t)
       ]
+
+    vol = ms (model^.modelVolume)
 
 ----------------------------------------------------------------------
 -- update handler
@@ -99,7 +115,7 @@ handleView model = div_ []
 
 handleUpdate :: Action -> Effect Model Action
 
-handleUpdate (ActionPlay song) = do
+handleUpdate (ActionAskPlay song) = do
   let audio = song^.songAudio
   io (ActionSetDuration (song^.songName) <$> duration audio)
   mCurrentAudio <- use modelPlaying
@@ -108,12 +124,28 @@ handleUpdate (ActionPlay song) = do
     then modelPlaying .= Nothing
     else do
       modelPlaying .= Just audio
+      setVolumePlaying
       io_ $ play audio
 
 handleUpdate (ActionSetDuration name t) = do
   let dt = realToFrac t
   modelPlaylist %= map (\s -> 
     if s^.songName /= name then s else s & songDuration ?~ dt)
+
+handleUpdate (ActionAskVolume str) = 
+  forM_ (fromMisoStringEither str) $ \vol -> do
+    modelVolume .= vol
+    setVolumePlaying
+
+handleUpdate (ActionSetVolume v) =
+  modelVolume .= v
+
+setVolumePlaying :: Effect Model Action
+setVolumePlaying = do
+  playing <- use modelPlaying
+  forM_ playing $ \audio -> do
+    vol <- use modelVolume
+    io_ (setVolume audio vol)
 
 ----------------------------------------------------------------------
 -- main
@@ -122,7 +154,7 @@ handleUpdate (ActionSetDuration name t) = do
 main :: IO ()
 main = run $ do
   songs <- zipWith mkSong thePlaylist <$> traverse newAudio thePlaylist
-  let model = Model songs Nothing 
+  let model = mkModel songs
   startComponent Component
     { model = model
     , update = handleUpdate
