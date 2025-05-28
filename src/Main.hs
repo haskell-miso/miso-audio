@@ -57,9 +57,9 @@ mkModel playlist = Model playlist Nothing
 
 data Action 
   = ActionAskPlay Song
-  | ActionSetDuration MisoString Double
   | ActionAskVolume MisoString
   | ActionSetVolume Double
+  | ActionSetDuration Double
 
 ----------------------------------------------------------------------
 -- lenses
@@ -105,18 +105,20 @@ handleView model = div_ []
 
     playOrPause audio = 
       let mAudio = _songAudio . _playingSong <$> model^.modelPlaying
-      in if mAudio == Just audio then "pause" else "play"
+      in if mAudio == Just audio then "pause" else " play "
 
     fmtPlaying = 
       case model^.modelPlaying of
         Nothing -> []
         Just p ->
           [ div_ [] 
-              [ text "volume: "
-              , text (ms $ p^.playingVolume)
-              , input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
+              [ input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
                         , value_ (ms $ p^.playingVolume)
                         , onChange ActionAskVolume ]
+              ]
+          , div_ [] 
+              [ text "volume: "
+              , text (ms $ p^.playingVolume)
               ]
           , div_ [] [ text ("duration: " <> fmtDuration (p^.playingDuration)) ]
           ]
@@ -137,22 +139,22 @@ handleUpdate (ActionAskPlay song) = do
     then modelPlaying .= Nothing
     else do
       modelPlaying .= Just (Playing song 0 0)
-      io (ActionSetDuration (song^.songName) <$> duration audio)
+      io (ActionSetDuration <$> duration audio)
       io (ActionSetVolume <$> getVolume audio)
       io_ $ play audio
-
-handleUpdate (ActionSetDuration name t) = 
-  modelPlaying %= fmap (\p -> p & playingDuration .~ realToFrac t)
 
 handleUpdate (ActionAskVolume str) = 
   forM_ (fromMisoStringEither str) $ \vol -> do
     mPlaying <- use modelPlaying
     forM_ mPlaying $ \p -> do
       io_ (setVolume (p^.playingSong^.songAudio) vol)
-      modelPlaying %= fmap (\p -> p & playingVolume .~ vol)
+      modelPlaying %= fmap (\p' -> p' & playingVolume .~ vol)
 
 handleUpdate (ActionSetVolume vol) =
   modelPlaying %= fmap (\p -> p & playingVolume .~ vol)
+
+handleUpdate (ActionSetDuration t) = 
+  modelPlaying %= fmap (\p -> p & playingDuration .~ realToFrac t)
 
 ----------------------------------------------------------------------
 -- main
