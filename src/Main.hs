@@ -12,8 +12,8 @@ import Miso.String (MisoString, ms, fromMisoStringEither)
 
 import Audio
 
--- TODO update play/pause button dynamically (ended listener?)
--- TODO toMisoString format (5.0e-2 -> 0.05)
+-- TODO switch "play" button to "pause" when audio ended
+-- TODO toMisoString format (5.0e-2 -> 0.05) ?
 
 ----------------------------------------------------------------------
 -- parameters
@@ -39,20 +39,21 @@ instance Eq Audio where
 data Song = Song
   { _songName :: MisoString
   , _songAudio :: Audio
-  , _songDuration :: Maybe DiffTime
   } deriving (Eq)
 
-mkSong :: MisoString -> Audio -> Song
-mkSong name audio = Song name audio Nothing
+data Playing = Playing
+  { _playingSong :: Song
+  , _playingVolume :: Double
+  , _playingDuration :: DiffTime
+  } deriving (Eq)
 
 data Model = Model
   { _modelPlaylist :: [Song]
-  , _modelPlaying :: Maybe Audio
-  , _modelVolume :: Double
+  , _modelPlaying :: Maybe Playing
   } deriving (Eq)
 
 mkModel :: [Song] -> Model
-mkModel playlist = Model playlist Nothing 1
+mkModel playlist = Model playlist Nothing
 
 data Action 
   = ActionAskPlay Song
@@ -70,17 +71,20 @@ songName = lens _songName $ \record field -> record { _songName = field }
 songAudio :: Lens Song Audio
 songAudio = lens _songAudio $ \record field -> record { _songAudio = field }
 
-songDuration :: Lens Song (Maybe DiffTime)
-songDuration = lens _songDuration $ \record field -> record { _songDuration = field }
+playingSong :: Lens Playing Song
+playingSong = lens _playingSong $ \record field -> record { _playingSong = field }
+
+playingVolume :: Lens Playing Double
+playingVolume = lens _playingVolume $ \record field -> record { _playingVolume = field }
+
+playingDuration :: Lens Playing DiffTime
+playingDuration = lens _playingDuration $ \record field -> record { _playingDuration = field }
 
 modelPlaylist :: Lens Model [Song]
 modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist = field }
 
-modelPlaying :: Lens Model (Maybe Audio)
+modelPlaying :: Lens Model (Maybe Playing)
 modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = field }
-
-modelVolume :: Lens Model Double
-modelVolume = lens _modelVolume $ \record field -> record { _modelVolume = field }
 
 ----------------------------------------------------------------------
 -- view handler
@@ -89,25 +93,35 @@ modelVolume = lens _modelVolume $ \record field -> record { _modelVolume = field
 handleView :: Model -> View Action
 handleView model = div_ [] 
   [ ul_ [] (map fmtSong $ model^.modelPlaylist)
-  , div_ [] 
-      [ p_ [] [ text "volume: ", text vol ]
-      , input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
-                , value_ vol, onChange ActionAskVolume ]
-      ]
+  , div_ [] fmtPlaying
   ]
+
   where
 
-    playOrPause audio = 
-      if model^.modelPlaying == Just audio then "pause" else "play"
-
-    fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%02M:%02S")
-
-    fmtSong s@(Song name audio t) = li_ [] 
-      [ button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause audio) ]
-      , text (" " <> name <> " " <> fmtDuration t)
+    fmtSong s = li_ [] 
+      [ button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause (s^.songAudio)) ]
+      , text (" " <> s^.songName)
       ]
 
-    vol = ms (model^.modelVolume)
+    playOrPause audio = 
+      let mAudio = _songAudio . _playingSong <$> model^.modelPlaying
+      in if mAudio == Just audio then "pause" else "play"
+
+    fmtPlaying = 
+      case model^.modelPlaying of
+        Nothing -> []
+        Just p ->
+          [ div_ [] 
+              [ text "volume: "
+              , text (ms $ p^.playingVolume)
+              , input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
+                        , value_ (ms $ p^.playingVolume)
+                        , onChange ActionAskVolume ]
+              ]
+          , div_ [] [ text ("duration: " <> fmtDuration (p^.playingDuration)) ]
+          ]
+
+    fmtDuration = ms . formatTime defaultTimeLocale "%02M:%02S" 
 
 ----------------------------------------------------------------------
 -- update handler
@@ -117,35 +131,28 @@ handleUpdate :: Action -> Effect Model Action
 
 handleUpdate (ActionAskPlay song) = do
   let audio = song^.songAudio
-  io (ActionSetDuration (song^.songName) <$> duration audio)
-  mCurrentAudio <- use modelPlaying
-  forM_ mCurrentAudio $ \currentAudio -> io_ (pause currentAudio)
-  if mCurrentAudio == Just audio
+  mPlaying <- use modelPlaying
+  forM_ mPlaying $ \p -> io_ (pause $ p^.playingSong^.songAudio)
+  if (_songAudio . _playingSong <$> mPlaying) == Just audio
     then modelPlaying .= Nothing
     else do
-      modelPlaying .= Just audio
-      setVolumePlaying
+      modelPlaying .= Just (Playing song 0 0)
+      io (ActionSetDuration (song^.songName) <$> duration audio)
+      io (ActionSetVolume <$> getVolume audio)
       io_ $ play audio
 
-handleUpdate (ActionSetDuration name t) = do
-  let dt = realToFrac t
-  modelPlaylist %= map (\s -> 
-    if s^.songName /= name then s else s & songDuration ?~ dt)
+handleUpdate (ActionSetDuration name t) = 
+  modelPlaying %= fmap (\p -> p & playingDuration .~ realToFrac t)
 
 handleUpdate (ActionAskVolume str) = 
   forM_ (fromMisoStringEither str) $ \vol -> do
-    modelVolume .= vol
-    setVolumePlaying
+    mPlaying <- use modelPlaying
+    forM_ mPlaying $ \p -> do
+      io_ (setVolume (p^.playingSong^.songAudio) vol)
+      modelPlaying %= fmap (\p -> p & playingVolume .~ vol)
 
-handleUpdate (ActionSetVolume v) =
-  modelVolume .= v
-
-setVolumePlaying :: Effect Model Action
-setVolumePlaying = do
-  playing <- use modelPlaying
-  forM_ playing $ \audio -> do
-    vol <- use modelVolume
-    io_ (setVolume audio vol)
+handleUpdate (ActionSetVolume vol) =
+  modelPlaying %= fmap (\p -> p & playingVolume .~ vol)
 
 ----------------------------------------------------------------------
 -- main
@@ -153,7 +160,7 @@ setVolumePlaying = do
 
 main :: IO ()
 main = run $ do
-  songs <- zipWith mkSong thePlaylist <$> traverse newAudio thePlaylist
+  songs <- zipWith Song thePlaylist <$> traverse newAudio thePlaylist
   let model = mkModel songs
   startComponent Component
     { model = model
