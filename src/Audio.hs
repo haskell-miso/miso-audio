@@ -1,4 +1,3 @@
-
 module Audio where
 
 import Control.Monad (void)
@@ -23,6 +22,7 @@ newAudio url = do
 
 play :: Audio -> JSM ()
 play (Audio a) = void $ a # "play" $ ()
+
 
 -- TODO replace by setVolume/getVolume ? (volume is both a getter and a setter, in the JS API)
 volume :: Audio -> Double -> JSM ()
@@ -64,4 +64,10 @@ ended (Audio a) = do
 -------------------------------------------------------------------------------
 -- not tested
 -------------------------------------------------------------------------------
+
+onEnded :: action -> Attribute action
+onEnded action = on (ms "ended") emptyDecoder $ \() -> action
+
+playStr :: MisoString -> JSM ()
+playStr name = void $ jsg name # "play" $ ()
 
