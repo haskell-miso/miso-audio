@@ -68,7 +68,3 @@ ended (Audio a) = do
 onEnded :: action -> Attribute action
 onEnded = on (ms "ended") emptyDecoder . const 
 
-playStr :: MisoString -> JSM ()
-playStr name = void $ (jsg name # "play") ()
--- playStr name = void ((jsg name # "play") ())
-

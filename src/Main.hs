@@ -2,7 +2,8 @@
 
 module Main where
 
-import Data.Bool (bool)
+-- import Control.Monad (forM_)
+-- import Data.Bool (bool)
 import Miso 
 import Miso.Lens
 import Miso.String (MisoString)
@@ -16,19 +17,25 @@ import Audio
 -- parameters
 ----------------------------------------------------------------------
 
-theSong :: MisoString
-theSong = "short.mp3"
+thePlaylist :: [MisoString]
+thePlaylist =
+  [ "roblox-minecraft-fortnite-video-game-music-299145.mp3"
+  , "kids-game-gaming-background-music-297733.mp3"
+  , "puzzle-game-bright-casual-video-game-music-249202.mp3"
+  , "short.mp3"
+  ]
 
 ----------------------------------------------------------------------
 -- types
 ----------------------------------------------------------------------
 
-newtype Model = Model
-  { _modelEnded :: Maybe Bool
+data Model = Model
+  { _modelPlaylist :: [MisoString]
+  , _modelPlaying :: Maybe MisoString
   } deriving (Eq)
 
-mkModel :: Model
-mkModel = Model Nothing
+mkModel :: [MisoString] -> Model
+mkModel playlist = Model playlist Nothing
 
 data Action 
   = ActionAudioClick MisoString
@@ -38,21 +45,38 @@ data Action
 -- lenses
 ----------------------------------------------------------------------
 
-modelEnded :: Lens Model (Maybe Bool)
-modelEnded = lens _modelEnded $ \record field -> record { _modelEnded = field }
+modelPlaylist :: Lens Model [MisoString]
+modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist = field }
+
+modelPlaying :: Lens Model (Maybe MisoString)
+modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = field }
 
 ----------------------------------------------------------------------
 -- view handler
 ----------------------------------------------------------------------
 
+fmtAudioId :: MisoString -> MisoString
+fmtAudioId name = "audio_" <> name
+
 handleView :: Model -> View Action
 handleView model = div_ [] 
-  [ div_ []
-      [ audio_ [ id_ "audio1", src_ theSong, onEnded ActionAudioEnded ] []
-      , button_ [ id_ "button1", onClick (ActionAudioClick "audio1") ] [ text "play" ]
-      , text (maybe "" (bool "running" "ended") (model^.modelEnded))
-      ]
+  [ ul_ [] (map fmtAudio (model^.modelPlaylist))
   ]
+  where
+
+    fmtAudio filename = 
+      let audioId = fmtAudioId filename
+      in li_ []
+        [ audio_ [ id_ audioId, src_ filename ] []
+        , button_ [ onClick (ActionAudioClick audioId) ] [ text (playOrPause audioId) ]
+
+        -- [ audio_ [ id_ audioId, src_ filename, onEnded ActionAudioEnded ] []
+        , button_ [  ] [ text "reload" ]
+        , text (" " <> filename)
+        ]
+
+    playOrPause audioId = 
+      if model^.modelPlaying == Just audioId then "pause" else " play "
 
 ----------------------------------------------------------------------
 -- update handler
@@ -61,13 +85,21 @@ handleView model = div_ []
 handleUpdate :: Action -> Effect Model Action
 
 handleUpdate ActionAudioEnded = do
-  io_ (consoleLog "audio ended")
-  modelEnded .= Just True
+  modelPlaying .= Nothing
 
-handleUpdate (ActionAudioClick str) = do
-  io_ (consoleLog "audio playing")
-  io_ (playStr str)
-  modelEnded .= Just False
+handleUpdate (ActionAudioClick audioId1) = do
+  mPlaying <- use modelPlaying
+  case mPlaying of
+    Nothing -> do
+      io_ (getElementById audioId1 >>= play . Audio)
+      modelPlaying .= Just audioId1
+    Just audioId0 -> do
+      io_ (getElementById audioId0 >>= pause . Audio)
+      if audioId0 == audioId1
+      then modelPlaying .= Nothing
+      else do
+        io_ (getElementById audioId1 >>= play . Audio)
+        modelPlaying .= Just audioId1
 
 ----------------------------------------------------------------------
 -- main
@@ -75,7 +107,7 @@ handleUpdate (ActionAudioClick str) = do
 
 main :: IO ()
 main = run $ do
-  let model = mkModel
+  let model = mkModel thePlaylist
   startComponent Component
     { model = model
     , update = handleUpdate
@@ -84,7 +116,7 @@ main = run $ do
     , events = defaultEvents
     , styles = []
     , mountPoint = Nothing
-    , logLevel = Off
+    , logLevel = DebugEvents
     , initialAction = Nothing
     }
 
