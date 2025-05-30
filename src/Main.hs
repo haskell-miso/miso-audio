@@ -25,6 +25,7 @@ thePlaylist =
   [ "roblox-minecraft-fortnite-video-game-music-299145.mp3"
   , "kids-game-gaming-background-music-297733.mp3"
   , "puzzle-game-bright-casual-video-game-music-249202.mp3"
+  , "short.mp3"
   ]
 
 ----------------------------------------------------------------------
