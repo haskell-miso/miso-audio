@@ -53,6 +53,9 @@ getVolume (Audio a) = do
   value <- a ! "volume"
   fromMaybe 0 <$> fromJSVal value
 
+load :: Audio -> JSM ()
+load (Audio a) = void $ a # "load" $ ()
+
 -------------------------------------------------------------------------------
 -- not tested
 -------------------------------------------------------------------------------

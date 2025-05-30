@@ -2,7 +2,7 @@
 
 module Main where
 
-import Control.Monad (forM_)
+import Control.Monad (forM_, when)
 import Data.Time.Clock (DiffTime)
 import Data.Time.Format
 import Language.Javascript.JSaddle (JSVal(..))
@@ -57,6 +57,7 @@ mkModel playlist = Model playlist Nothing
 
 data Action 
   = ActionAskPlay Song
+  | ActionAskLoad Song
   | ActionAskVolume MisoString
   | ActionSetVolume Double
   | ActionSetDuration Double
@@ -92,7 +93,13 @@ modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = fi
 
 handleView :: Model -> View Action
 handleView model = div_ [] 
-  [ ul_ [] (map fmtSong $ model^.modelPlaylist)
+  [ div_ []
+      [ a_ [ href_ "https://github.com/juliendehos/miso-audio-test" ] [ text "source" ]
+      , text " - "
+      , a_ [ href_ "https://juliendehos.github.io/miso-audio-test/" ] [ text "demo" ]
+      ]
+  , ul_ [] (map fmtSong $ model^.modelPlaylist)
+  , div_ [] [ audio_ [ id_ "myTestAudio" ] [] ]  -- mta = document.getElementById("myTestAudio")
   , div_ [] fmtPlaying
   ]
 
@@ -100,6 +107,7 @@ handleView model = div_ []
 
     fmtSong s = li_ [] 
       [ button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause (s^.songAudio)) ]
+      , button_ [ onClick (ActionAskLoad s) ] [ text "reload" ]
       , text (" " <> s^.songName)
       ]
 
@@ -142,6 +150,13 @@ handleUpdate (ActionAskPlay song) = do
       io (ActionSetDuration <$> duration audio)
       io (ActionSetVolume <$> getVolume audio)
       io_ $ play audio
+
+handleUpdate (ActionAskLoad song) = do
+  let audio = song^.songAudio
+  io_ $ load audio
+  mPlaying <- use modelPlaying
+  when ((_songAudio . _playingSong <$> mPlaying) == Just audio) $
+    io_ $ play audio
 
 handleUpdate (ActionAskVolume str) = 
   forM_ (fromMisoStringEither str) $ \vol -> do
