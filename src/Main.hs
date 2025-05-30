@@ -3,6 +3,7 @@
 module Main where
 
 import Control.Monad (forM_, when)
+import Data.Bool (bool)
 import Data.Time.Clock (DiffTime)
 import Data.Time.Format
 import Language.Javascript.JSaddle (JSVal(..))
@@ -12,7 +13,7 @@ import Miso.String (MisoString, ms, fromMisoStringEither)
 
 import Audio
 
--- TODO switch "play" button to "pause" when audio ended
+-- TODO detect when audio ended
 -- TODO toMisoString format (5.0e-2 -> 0.05) ?
 
 ----------------------------------------------------------------------
@@ -45,6 +46,7 @@ data Playing = Playing
   { _playingSong :: Song
   , _playingVolume :: Double
   , _playingDuration :: DiffTime
+  , _playingEnded :: Bool
   } deriving (Eq)
 
 data Model = Model
@@ -60,6 +62,7 @@ data Action
   | ActionAskLoad Song
   | ActionAskVolume MisoString
   | ActionSetVolume Double
+  | ActionSetEnded Bool
   | ActionSetDuration Double
 
 ----------------------------------------------------------------------
@@ -81,6 +84,9 @@ playingVolume = lens _playingVolume $ \record field -> record { _playingVolume =
 playingDuration :: Lens Playing DiffTime
 playingDuration = lens _playingDuration $ \record field -> record { _playingDuration = field }
 
+playingEnded :: Lens Playing Bool
+playingEnded = lens _playingEnded $ \record field -> record { _playingEnded = field }
+
 modelPlaylist :: Lens Model [Song]
 modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist = field }
 
@@ -99,7 +105,7 @@ handleView model = div_ []
       , a_ [ href_ "https://juliendehos.github.io/miso-audio-test/" ] [ text "demo" ]
       ]
   , ul_ [] (map fmtSong $ model^.modelPlaylist)
-  , div_ [] [ audio_ [ id_ "myTestAudio" ] [] ]  -- mta = document.getElementById("myTestAudio")
+  , div_ [] [ audio_ [ id_ "myTestAudio" ] [] ]  -- for inspecting an audio object in the JS console (document.getElementById("myTestAudio")
   , div_ [] fmtPlaying
   ]
 
@@ -129,6 +135,7 @@ handleView model = div_ []
               , text (ms $ p^.playingVolume)
               ]
           , div_ [] [ text ("duration: " <> fmtDuration (p^.playingDuration)) ]
+          , div_ [] [ text (bool "running" "ended" (p^.playingEnded)) ]
           ]
 
     fmtDuration = ms . formatTime defaultTimeLocale "%02M:%02S" 
@@ -146,9 +153,10 @@ handleUpdate (ActionAskPlay song) = do
   if (_songAudio . _playingSong <$> mPlaying) == Just audio
     then modelPlaying .= Nothing
     else do
-      modelPlaying .= Just (Playing song 0 0)
+      modelPlaying .= Just (Playing song 0 0 False)
       io (ActionSetDuration <$> duration audio)
       io (ActionSetVolume <$> getVolume audio)
+      io (ActionSetEnded <$> ended audio)
       io_ $ play audio
 
 handleUpdate (ActionAskLoad song) = do
@@ -167,6 +175,9 @@ handleUpdate (ActionAskVolume str) =
 
 handleUpdate (ActionSetVolume vol) =
   modelPlaying %= fmap (\p -> p & playingVolume .~ vol)
+
+handleUpdate (ActionSetEnded end) =
+  modelPlaying %= fmap (\p -> p & playingEnded .~ end)
 
 handleUpdate (ActionSetDuration t) = 
   modelPlaying %= fmap (\p -> p & playingDuration .~ realToFrac t)

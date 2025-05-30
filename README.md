@@ -45,7 +45,7 @@ Audio Object Properties:
 - [ ] seeking 	            Returns whether the user is currently seeking in the audio
 - [ ] src 	                Sets or returns the value of the src attribute of an audio
 - [ ] textTracks 	        Returns a TextTrackList object representing the available text tracks
-- [ ] volume 	            Sets or returns the audio volume of an audio
+- [x] volume 	            Sets or returns the audio volume of an audio
 
 Audio Object Methods:
 
@@ -53,7 +53,7 @@ Audio Object Methods:
 - [ ] canPlayType() 	Checks whether the browser can play the specified audio type
 - [ ] fastSeek() 	    Seeks to a specified time in the audio player
 - [ ] getStartDate() 	Returns a new Date object, representing the current timeline offset
-- [ ] load() 	        Re-loads the audio element
+- [x] load() 	        Re-loads the audio element
 - [x] play() 	        Starts playing the audio
 - [x] pause() 	        Pauses the currently playing audio
 
