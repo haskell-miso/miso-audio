@@ -67,11 +67,9 @@ handleView model = div_ []
     fmtAudio filename = 
       let audioId = fmtAudioId filename
       in li_ []
-        [ audio_ [ id_ audioId, src_ filename ] []
+        [ audio_ [ id_ audioId, src_ filename, onEnded ActionAudioEnded ] []
         , button_ [ onClick (ActionAudioClick audioId) ] [ text (playOrPause audioId) ]
-
-        -- [ audio_ [ id_ audioId, src_ filename, onEnded ActionAudioEnded ] []
-        , button_ [  ] [ text "reload" ]
+        -- , button_ [  ] [ text "reload" ]
         , text (" " <> filename)
         ]
 
@@ -85,9 +83,11 @@ handleView model = div_ []
 handleUpdate :: Action -> Effect Model Action
 
 handleUpdate ActionAudioEnded = do
+  io_ $ consoleLog "ActionAudioEnded"
   modelPlaying .= Nothing
 
 handleUpdate (ActionAudioClick audioId1) = do
+  io_ $ consoleLog "ActionAudioClick"
   mPlaying <- use modelPlaying
   case mPlaying of
     Nothing -> do
@@ -113,10 +113,12 @@ main = run $ do
     , update = handleUpdate
     , view = handleView
     , subs = []
-    , events = defaultEvents
+    , events = defaultEvents <> audioVideoEvents
     , styles = []
     , mountPoint = Nothing
-    , logLevel = DebugEvents
+    , logLevel = DebugAll
+    -- , logLevel = Off
+    -- , logLevel = DebugEvents
     , initialAction = Nothing
     }
 
