@@ -1,3 +1,4 @@
+
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -106,24 +107,15 @@ handleUpdate (ActionAudioClick audioId1) = do
 ----------------------------------------------------------------------
 
 main :: IO ()
-main = run $ do
+main = do
   let model = mkModel thePlaylist
-  startComponent Component
-    { model = model
-    , update = handleUpdate
-    , view = handleView
-    , subs = []
-    , events = defaultEvents <> audioVideoEvents
-    , styles = []
-    , mountPoint = Nothing
+  let app = defaultComponent model handleUpdate handleView
+  run $ startComponent app
+    { events = defaultEvents <> audioVideoEvents
     , logLevel = DebugAll
-    -- , logLevel = Off
-    -- , logLevel = DebugEvents
-    , initialAction = Nothing
     }
 
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
 #endif
-
 
