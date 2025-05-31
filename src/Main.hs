@@ -107,10 +107,10 @@ handleUpdate (ActionAudioClick audioId1) = do
 ----------------------------------------------------------------------
 
 main :: IO ()
-main = do
+main = run $ do
   let model = mkModel thePlaylist
   let app = defaultComponent model handleUpdate handleView
-  run $ startComponent app
+  startComponent app
     { events = defaultEvents <> audioVideoEvents
     , logLevel = DebugAll
     }
