@@ -57,3 +57,7 @@ Audio Object Methods:
 - [x] play() 	        Starts playing the audio
 - [x] pause() 	        Pauses the currently playing audio
 
+HTML DOM Events:
+
+- [x] ended 	A media has reach the end ("thanks for listening") 	Event
+
