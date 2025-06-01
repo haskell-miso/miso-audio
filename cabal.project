@@ -10,6 +10,8 @@ source-repository-package
   -- tag: 94ae65eb946c9a8f6b8c0998477a9611d7e1a716
   branch: master
 
+flags: +template-haskell
+
 if arch(wasm32)
   -- Required for TemplateHaskell. When using wasm32-wasi-cabal from
   -- ghc-wasm-meta, this is superseded by the global cabal.config.

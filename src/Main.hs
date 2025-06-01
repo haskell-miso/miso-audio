@@ -1,12 +1,14 @@
-
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
 -- import Control.Monad (forM_)
 -- import Data.Bool (bool)
+-- import Control.Lens.TH
+
 import Miso 
-import Miso.Lens
+-- import Miso.Lens
+import Miso.Lens.TH
 import Miso.String (MisoString)
 
 import Audio
@@ -46,6 +48,13 @@ data Action
 -- lenses
 ----------------------------------------------------------------------
 
+makeLenses ''Model
+
+main :: IO ()
+main = putStrLn "hello"
+
+{-
+
 modelPlaylist :: Lens Model [MisoString]
 modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist = field }
 
@@ -83,12 +92,10 @@ handleView model = div_ []
 
 handleUpdate :: Action -> Effect Model Action
 
-handleUpdate ActionAudioEnded = do
-  io_ $ consoleLog "ActionAudioEnded"
+handleUpdate ActionAudioEnded = 
   modelPlaying .= Nothing
 
 handleUpdate (ActionAudioClick audioId1) = do
-  io_ $ consoleLog "ActionAudioClick"
   mPlaying <- use modelPlaying
   case mPlaying of
     Nothing -> do
@@ -114,6 +121,7 @@ main = run $ do
     { events = defaultEvents <> audioVideoEvents
     , logLevel = DebugAll
     }
+-}
 
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
