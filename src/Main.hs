@@ -4,16 +4,14 @@ module Main where
 
 -- import Control.Monad (forM_)
 -- import Data.Bool (bool)
--- import Control.Lens.TH
 
 import Miso 
--- import Miso.Lens
-import Miso.Lens.TH
+import Miso.Lens
 import Miso.String (MisoString)
 
 import Audio
+import Model
 
--- TODO detect when audio ended
 -- TODO toMisoString format (5.0e-2 -> 0.05) ?
 
 ----------------------------------------------------------------------
@@ -32,34 +30,9 @@ thePlaylist =
 -- types
 ----------------------------------------------------------------------
 
-data Model = Model
-  { _modelPlaylist :: [MisoString]
-  , _modelPlaying :: Maybe MisoString
-  } deriving (Eq)
-
-mkModel :: [MisoString] -> Model
-mkModel playlist = Model playlist Nothing
-
 data Action 
   = ActionAudioClick MisoString
   | ActionAudioEnded
-
-----------------------------------------------------------------------
--- lenses
-----------------------------------------------------------------------
-
-makeLenses ''Model
-
-main :: IO ()
-main = putStrLn "hello"
-
-{-
-
-modelPlaylist :: Lens Model [MisoString]
-modelPlaylist = lens _modelPlaylist $ \record field -> record { _modelPlaylist = field }
-
-modelPlaying :: Lens Model (Maybe MisoString)
-modelPlaying = lens _modelPlaying $ \record field -> record { _modelPlaying = field }
 
 ----------------------------------------------------------------------
 -- view handler
@@ -70,7 +43,12 @@ fmtAudioId name = "audio_" <> name
 
 handleView :: Model -> View Action
 handleView model = div_ [] 
-  [ ul_ [] (map fmtAudio (model^.modelPlaylist))
+  [ div_ []
+      [ a_ [ href_ "https://github.com/juliendehos/miso-audio-test" ] [ text "source" ]
+      , text " - "
+      , a_ [ href_ "https://juliendehos.github.io/miso-audio-test/" ] [ text "demo" ]
+      ]
+  , ul_ [] (map fmtAudio (model^.modelPlaylist))
   ]
   where
 
@@ -121,7 +99,6 @@ main = run $ do
     { events = defaultEvents <> audioVideoEvents
     , logLevel = DebugAll
     }
--}
 
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
