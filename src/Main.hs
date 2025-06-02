@@ -2,15 +2,15 @@
 
 module Main where
 
--- import Control.Monad (forM_)
 -- import Data.Bool (bool)
-
+import Control.Monad (forM_)
+-- import Data.Time.Format
 import Miso 
 import Miso.Lens
 import Miso.String (MisoString)
 
-import Audio
 import Model
+import MyMiso
 
 -- TODO toMisoString format (5.0e-2 -> 0.05) ?
 
@@ -31,15 +31,18 @@ thePlaylist =
 ----------------------------------------------------------------------
 
 data Action 
-  = ActionAudioClick MisoString
-  | ActionAudioEnded
+  = ActionAskPlay Song
+  | ActionAskEnded
+  | ActionAskLoad Song
+
+-- ActionAskVolume MisoString
+-- ActionSetVolume Double
+-- ActionSetEnded Bool
+-- ActionSetDuration Double
 
 ----------------------------------------------------------------------
 -- view handler
 ----------------------------------------------------------------------
-
-fmtAudioId :: MisoString -> MisoString
-fmtAudioId name = "audio_" <> name
 
 handleView :: Model -> View Action
 handleView model = div_ [] 
@@ -48,21 +51,20 @@ handleView model = div_ []
       , text " - "
       , a_ [ href_ "https://juliendehos.github.io/miso-audio-test/" ] [ text "demo" ]
       ]
-  , ul_ [] (map fmtAudio (model^.modelPlaylist))
+  , ul_ [] (map fmtSong (model^.modelSongs))
   ]
   where
 
-    fmtAudio filename = 
-      let audioId = fmtAudioId filename
-      in li_ []
-        [ audio_ [ id_ audioId, src_ filename, onEnded ActionAudioEnded ] []
-        , button_ [ onClick (ActionAudioClick audioId) ] [ text (playOrPause audioId) ]
-        -- , button_ [  ] [ text "reload" ]
-        , text (" " <> filename)
-        ]
+    playOrPause s = 
+      let mSong = _playingSong <$> model^.modelPlaying
+      in if mSong == Just s then "pause" else " play "
 
-    playOrPause audioId = 
-      if model^.modelPlaying == Just audioId then "pause" else " play "
+    fmtSong s = li_ [] 
+        [ audio_ [ id_ (s^.songAudioId), src_ (s^.songFilename), onEnded ActionAskEnded ] []
+        , button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause s) ]
+        , button_ [ onClick (ActionAskLoad s) ] [ text "reload" ]
+        , text (" " <> s^.songFilename)
+        ]
 
 ----------------------------------------------------------------------
 -- update handler
@@ -70,22 +72,27 @@ handleView model = div_ []
 
 handleUpdate :: Action -> Effect Model Action
 
-handleUpdate ActionAudioEnded = 
+handleUpdate (ActionAskPlay s) = do
+  mPlaying <- use modelPlaying
+  forM_ mPlaying $ \p -> 
+    io_ (getElementById (p^.playingSong^.songAudioId) >>= pause . Audio)
+  if (_playingSong <$> mPlaying) == Just s
+    then modelPlaying .= Nothing
+    else do
+      modelPlaying .= Just (mkPlaying s)
+      -- io (ActionSetDuration <$> duration audio)
+      -- io (ActionSetVolume <$> getVolume audio)
+      -- io (ActionSetEnded <$> ended audio)
+      io_ (getElementById (s^.songAudioId) >>= play . Audio)
+
+handleUpdate ActionAskEnded = 
   modelPlaying .= Nothing
 
-handleUpdate (ActionAudioClick audioId1) = do
+handleUpdate (ActionAskLoad s)  = do
+  io_ (getElementById (s^.songAudioId) >>= load . Audio)
   mPlaying <- use modelPlaying
-  case mPlaying of
-    Nothing -> do
-      io_ (getElementById audioId1 >>= play . Audio)
-      modelPlaying .= Just audioId1
-    Just audioId0 -> do
-      io_ (getElementById audioId0 >>= pause . Audio)
-      if audioId0 == audioId1
-      then modelPlaying .= Nothing
-      else do
-        io_ (getElementById audioId1 >>= play . Audio)
-        modelPlaying .= Just audioId1
+  forM_ mPlaying $ \p -> 
+    io_ (getElementById (p^.playingSong^.songAudioId) >>= play . Audio)
 
 ----------------------------------------------------------------------
 -- main
@@ -93,8 +100,8 @@ handleUpdate (ActionAudioClick audioId1) = do
 
 main :: IO ()
 main = run $ do
-  let model = mkModel thePlaylist
-  let app = defaultComponent model handleUpdate handleView
+  let model = mkModel (mkSong <$> thePlaylist)
+      app = defaultComponent model handleUpdate handleView
   startComponent app
     { events = defaultEvents <> audioVideoEvents
     , logLevel = DebugAll

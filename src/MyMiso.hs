@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Audio where
+module MyMiso where
 
 import Control.Monad (void)
 import Data.Maybe (fromMaybe)
