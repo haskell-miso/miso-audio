@@ -2,17 +2,18 @@
 
 module Main where
 
--- import Data.Bool (bool)
-import Control.Monad (forM_)
--- import Data.Time.Format
+import Control.Monad (forM_, when)
+import Data.Time.Format
 import Miso 
-import Miso.Lens
-import Miso.String (MisoString)
+import Miso.Lens as Lens
+import Miso.String (fromMisoStringEither, MisoString, ms)
 
 import Model
 import MyMiso
 
 -- TODO toMisoString format (5.0e-2 -> 0.05) ?
+-- TODO volume -> getVolume/setVolume ?
+-- TODO avoid getElementById calls ?
 
 ----------------------------------------------------------------------
 -- parameters
@@ -33,12 +34,10 @@ thePlaylist =
 data Action 
   = ActionAskPlay Song
   | ActionAskEnded
-  | ActionAskLoad Song
-
--- ActionAskVolume MisoString
--- ActionSetVolume Double
--- ActionSetEnded Bool
--- ActionSetDuration Double
+  | ActionAskReload Song
+  | ActionAskVolume MisoString
+  | ActionSetVolume Double
+  | ActionSetDuration Double
 
 ----------------------------------------------------------------------
 -- view handler
@@ -52,6 +51,7 @@ handleView model = div_ []
       , a_ [ href_ "https://juliendehos.github.io/miso-audio-test/" ] [ text "demo" ]
       ]
   , ul_ [] (map fmtSong (model^.modelSongs))
+  , div_ [] fmtPlaying
   ]
   where
 
@@ -62,9 +62,24 @@ handleView model = div_ []
     fmtSong s = li_ [] 
         [ audio_ [ id_ (s^.songAudioId), src_ (s^.songFilename), onEnded ActionAskEnded ] []
         , button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause s) ]
-        , button_ [ onClick (ActionAskLoad s) ] [ text "reload" ]
+        , button_ [ onClick (ActionAskReload s) ] [ text "reload" ]
         , text (" " <> s^.songFilename)
         ]
+
+    fmtDuration = ms . formatTime defaultTimeLocale "%02M:%02S" 
+
+    fmtPlaying = 
+      case model^.modelPlaying of
+        Nothing -> []
+        Just p ->
+          [ div_ [] 
+              [ input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
+                        , value_ (ms $ p^.playingVolume)
+                        , onChange ActionAskVolume ]
+              ]
+          , div_ [] [ text "volume: " , text (ms $ p^.playingVolume) ]
+          , div_ [] [ text ("duration: " <> fmtDuration (p^.playingDuration)) ]
+          ]
 
 ----------------------------------------------------------------------
 -- update handler
@@ -80,19 +95,32 @@ handleUpdate (ActionAskPlay s) = do
     then modelPlaying .= Nothing
     else do
       modelPlaying .= Just (mkPlaying s)
-      -- io (ActionSetDuration <$> duration audio)
-      -- io (ActionSetVolume <$> getVolume audio)
-      -- io (ActionSetEnded <$> ended audio)
+      io (getElementById (s^.songAudioId) >>= fmap ActionSetVolume . getVolume . Audio)
+      io (getElementById (s^.songAudioId) >>= fmap ActionSetDuration . duration . Audio)
       io_ (getElementById (s^.songAudioId) >>= play . Audio)
 
 handleUpdate ActionAskEnded = 
   modelPlaying .= Nothing
 
-handleUpdate (ActionAskLoad s)  = do
+handleUpdate (ActionAskReload s)  = do
   io_ (getElementById (s^.songAudioId) >>= load . Audio)
-  mPlaying <- use modelPlaying
-  forM_ mPlaying $ \p -> 
-    io_ (getElementById (p^.playingSong^.songAudioId) >>= play . Audio)
+  mSong <- fmap _playingSong <$> use modelPlaying
+  when (mSong == Just s) $ 
+    -- io_ (getElementById (s^.songAudioId) >>= play . Audio)
+    modelPlaying .= Nothing
+
+handleUpdate (ActionAskVolume str) = 
+  forM_ (fromMisoStringEither str) $ \vol -> do
+    mPlaying <- use modelPlaying
+    forM_ mPlaying $ \p -> do
+      io_ (getElementById (p^.playingSong^.songAudioId) >>= flip setVolume vol . Audio)
+      modelPlaying %= fmap (Lens.set playingVolume vol)
+
+handleUpdate (ActionSetVolume vol) =
+  modelPlaying %= fmap (Lens.set playingVolume vol)
+
+handleUpdate (ActionSetDuration t) =
+  modelPlaying %= fmap (Lens.set playingDuration (realToFrac t))
 
 ----------------------------------------------------------------------
 -- main

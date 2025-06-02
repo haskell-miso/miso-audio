@@ -33,12 +33,12 @@ ended (Audio a) = do
   value <- a ! ("ended" :: MisoString)
   fromMaybe False <$> fromJSVal value
 
+onEnded :: action -> Attribute action
+onEnded action = on "ended" emptyDecoder $ \() _ -> action
+
 -------------------------------------------------------------------------------
 -- not tested
 -------------------------------------------------------------------------------
-
-onEnded :: action -> Attribute action
-onEnded action = on "ended" emptyDecoder $ \() _ -> action
 
 onEndedWith :: (JSVal -> action) -> Attribute action
 onEndedWith action = on "ended" emptyDecoder $ \() domRef -> action domRef

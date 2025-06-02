@@ -45,14 +45,13 @@ mkSong filename = Song filename ("audio_" <> filename)
 data Playing = Playing
   { _playingVolume :: Double
   , _playingDuration :: DiffTime
-  , _playingEnded :: Bool
   , _playingSong :: Song
   } deriving (Eq)
 
 makeLenses ''Playing
 
 mkPlaying :: Song -> Playing
-mkPlaying = Playing 0 0 False
+mkPlaying = Playing 0 0
 
 -------------------------------------------------------------------------------
 -- Model
