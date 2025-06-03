@@ -60,7 +60,6 @@ handleView model = div_ []
             , volume_ (s^.songVolume)
             , onEnded ActionAskEnded
             , onCanPlayWith (ActionAskDuration sId) 
-            -- , onCanPlay (ActionAskDuration sId) 
             ]
             []
         , button_ 
@@ -132,6 +131,7 @@ handleUpdate (ActionAskVolume str) =
       modelSongs %= adjust (Lens.set songVolume vol) pId
 
 handleUpdate (ActionAskDuration sId media) =
+  -- get media duration then set model
   io (ActionSetDuration sId <$> duration media)
 
 handleUpdate (ActionSetDuration sId t) =
