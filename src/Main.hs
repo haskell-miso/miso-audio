@@ -33,6 +33,7 @@ data Action
   | ActionAskEnded
   | ActionAskReload SongId
   | ActionAskVolume MisoString
+  | ActionAskDuration SongId Media
   | ActionSetDuration SongId Double
 
 ----------------------------------------------------------------------
@@ -58,6 +59,8 @@ handleView model = div_ []
             , src_ (s^.songFilename)
             , volume_ (s^.songVolume)
             , onEnded ActionAskEnded
+            , onCanPlayWith (ActionAskDuration sId) 
+            -- , onCanPlay (ActionAskDuration sId) 
             ]
             []
         , button_ 
@@ -107,10 +110,6 @@ handleUpdate (ActionAskPlay sId) = do
     then do
       modelPlaying .= Just sId
       io_ (getElementById (sId^.songId) >>= play . Media)
-      -- set song duration, if not already done
-      songs <- use modelSongs
-      when (sId `member` songs) $
-        io (getElementById (sId^.songId) >>= fmap (ActionSetDuration sId) . duration . Media)
     else modelPlaying .= Nothing
 
 handleUpdate ActionAskEnded = 
@@ -131,6 +130,9 @@ handleUpdate (ActionAskVolume str) =
     mPlaying <- use modelPlaying
     forM_ mPlaying $ \pId ->
       modelSongs %= adjust (Lens.set songVolume vol) pId
+
+handleUpdate (ActionAskDuration sId media) =
+  io (ActionSetDuration sId <$> duration media)
 
 handleUpdate (ActionSetDuration sId t) =
   -- find the song, in the map, and set its duration
