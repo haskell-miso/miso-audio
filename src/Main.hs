@@ -2,8 +2,8 @@
 
 module Main where
 
-import Control.Monad (forM_, void, when)
-import Data.Map as Map ((!?), adjust, elems, mapWithKey, member)
+import Control.Monad (forM_, when)
+import Data.Map as Map ((!?), adjust, elems, mapWithKey)
 import Data.Time.Format
 import Miso
 import Miso.Lens as Lens
