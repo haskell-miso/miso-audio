@@ -72,8 +72,7 @@ handleView model = div_ []
         ]
 
     playOrPause sId = 
-      let mSongId = model^.modelPlaying
-      in if mSongId == Just sId then "pause" else " play "
+      if (model^.modelPlaying) == Just sId then "pause" else " play "
 
     -- format the current song, if any
     fmtPlaying = 
