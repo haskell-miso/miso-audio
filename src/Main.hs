@@ -2,18 +2,15 @@
 
 module Main where
 
-import Control.Monad (forM_, when)
+import Control.Monad (forM_, void, when)
+import Data.Map as Map ((!?), adjust, elems, mapWithKey, member)
 import Data.Time.Format
-import Miso 
+import Miso
 import Miso.Lens as Lens
+import Miso.Media
 import Miso.String (fromMisoStringEither, MisoString, ms)
 
 import Model
-import MyMiso
-
--- TODO toMisoString format (5.0e-2 -> 0.05) ?
--- TODO volume -> getVolume/setVolume ?
--- TODO avoid getElementById calls ?
 
 ----------------------------------------------------------------------
 -- parameters
@@ -28,16 +25,15 @@ thePlaylist =
   ]
 
 ----------------------------------------------------------------------
--- types
+-- actions
 ----------------------------------------------------------------------
 
 data Action 
-  = ActionAskPlay Song
+  = ActionAskPlay SongId
   | ActionAskEnded
-  | ActionAskReload Song
+  | ActionAskReload SongId
   | ActionAskVolume MisoString
-  | ActionSetVolume Double
-  | ActionSetDuration Double
+  | ActionSetDuration SongId Double
 
 ----------------------------------------------------------------------
 -- view handler
@@ -50,36 +46,50 @@ handleView model = div_ []
       , text " - "
       , a_ [ href_ "https://juliendehos.github.io/miso-audio-test/" ] [ text "demo" ]
       ]
-  , ul_ [] (map fmtSong (model^.modelSongs))
+  , ul_ [] (elems $ mapWithKey fmtSong (model^.modelSongs))
   , div_ [] fmtPlaying
   ]
   where
 
-    playOrPause s = 
-      let mSong = _playingSong <$> model^.modelPlaying
-      in if mSong == Just s then "pause" else " play "
-
-    fmtSong s = li_ [] 
-        [ audio_ [ id_ (s^.songAudioId), src_ (s^.songFilename), onEnded ActionAskEnded ] []
-        , button_ [ onClick (ActionAskPlay s) ] [ text (playOrPause s) ]
-        , button_ [ onClick (ActionAskReload s) ] [ text "reload" ]
+    -- format a song
+    fmtSong sId s = li_ [] 
+        [ audio_ 
+            [ id_ (sId^.songId)
+            , src_ (s^.songFilename)
+            , volume_ (s^.songVolume)
+            , onEnded ActionAskEnded
+            ]
+            []
+        , button_ 
+            [ onClick (ActionAskPlay sId) ]
+            [ text (playOrPause sId) ]
+        , button_ 
+            [ onClick (ActionAskReload sId) ]
+            [ text "reload" ]
         , text (" " <> s^.songFilename)
         ]
 
-    fmtDuration = ms . formatTime defaultTimeLocale "%02M:%02S" 
+    playOrPause sId = 
+      let mSongId = model^.modelPlaying
+      in if mSongId == Just sId then "pause" else " play "
 
+    -- format the current song, if any
     fmtPlaying = 
-      case model^.modelPlaying of
-        Nothing -> []
+      case model^.modelPlaying >>= ((model^.modelSongs) !?) of
         Just p ->
           [ div_ [] 
-              [ input_  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
-                        , value_ (ms $ p^.playingVolume)
-                        , onChange ActionAskVolume ]
+              [ input_ 
+                  [ type_ "range", min_ "0.0", max_ "1.0", step_ "0.05"
+                  , value_ (ms $ p^.songVolume)
+                  , onChange ActionAskVolume 
+                  ]
               ]
-          , div_ [] [ text "volume: " , text (ms $ p^.playingVolume) ]
-          , div_ [] [ text ("duration: " <> fmtDuration (p^.playingDuration)) ]
+          , div_ [] [ text "volume: " , text (ms $ p^.songVolume) ]
+          , div_ [] [ text ("duration: " <> fmtDuration (p^.songDuration)) ]
           ]
+        _ -> []
+
+    fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%02M:%02S")
 
 ----------------------------------------------------------------------
 -- update handler
@@ -87,40 +97,44 @@ handleView model = div_ []
 
 handleUpdate :: Action -> Effect Model Action
 
-handleUpdate (ActionAskPlay s) = do
+handleUpdate (ActionAskPlay sId) = do
+  -- pause the current song, if any
   mPlaying <- use modelPlaying
-  forM_ mPlaying $ \p -> 
-    io_ (getElementById (p^.playingSong^.songAudioId) >>= pause . Audio)
-  if (_playingSong <$> mPlaying) == Just s
-    then modelPlaying .= Nothing
-    else do
-      modelPlaying .= Just (mkPlaying s)
-      io (getElementById (s^.songAudioId) >>= fmap ActionSetVolume . getVolume . Audio)
-      io (getElementById (s^.songAudioId) >>= fmap ActionSetDuration . duration . Audio)
-      io_ (getElementById (s^.songAudioId) >>= play . Audio)
+  forM_ mPlaying $ \pId -> 
+    io_ (getElementById (pId^.songId) >>= pause . Media)
+  -- if a new song is selected, play it
+  if mPlaying /= Just sId
+    then do
+      modelPlaying .= Just sId
+      io_ (getElementById (sId^.songId) >>= play . Media)
+      -- set song duration, if not already done
+      songs <- use modelSongs
+      when (sId `member` songs) $
+        io (getElementById (sId^.songId) >>= fmap (ActionSetDuration sId) . duration . Media)
+    else modelPlaying .= Nothing
 
 handleUpdate ActionAskEnded = 
   modelPlaying .= Nothing
 
-handleUpdate (ActionAskReload s)  = do
-  io_ (getElementById (s^.songAudioId) >>= load . Audio)
-  mSong <- fmap _playingSong <$> use modelPlaying
-  when (mSong == Just s) $ 
-    -- io_ (getElementById (s^.songAudioId) >>= play . Audio)
+handleUpdate (ActionAskReload sId)  = do
+  -- reload the song
+  io_ (getElementById (sId^.songId) >>= load . Media)
+  -- if the song is the current song, reset modelPlaying
+  mP <- use modelPlaying
+  when (mP == Just sId) $ 
     modelPlaying .= Nothing
 
 handleUpdate (ActionAskVolume str) = 
+  -- try to parse the input to a number
   forM_ (fromMisoStringEither str) $ \vol -> do
+    -- find the current song then adjust its volume in the map
     mPlaying <- use modelPlaying
-    forM_ mPlaying $ \p -> do
-      io_ (getElementById (p^.playingSong^.songAudioId) >>= flip setVolume vol . Audio)
-      modelPlaying %= fmap (Lens.set playingVolume vol)
+    forM_ mPlaying $ \pId ->
+      modelSongs %= adjust (Lens.set songVolume vol) pId
 
-handleUpdate (ActionSetVolume vol) =
-  modelPlaying %= fmap (Lens.set playingVolume vol)
-
-handleUpdate (ActionSetDuration t) =
-  modelPlaying %= fmap (Lens.set playingDuration (realToFrac t))
+handleUpdate (ActionSetDuration sId t) =
+  -- find the song, in the map, and set its duration
+  modelSongs %= adjust (Lens.set songDuration (Just $ realToFrac t)) sId
 
 ----------------------------------------------------------------------
 -- main
@@ -128,10 +142,10 @@ handleUpdate (ActionSetDuration t) =
 
 main :: IO ()
 main = run $ do
-  let model = mkModel (mkSong <$> thePlaylist)
+  let model = mkModel thePlaylist
       app = defaultComponent model handleUpdate handleView
   startComponent app
-    { events = defaultEvents <> audioVideoEvents
+    { events = defaultEvents <> mediaEvents
     , logLevel = DebugAll
     }
 

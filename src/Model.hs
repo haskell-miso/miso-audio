@@ -4,11 +4,12 @@
 
 module Model where
 
+import Data.Map as Map
 import Data.Time.Clock (DiffTime)
 import Language.Javascript.JSaddle (JSVal(..))
-import Miso 
 import Miso.Lens
 import Miso.Lens.TH
+import Miso.Media
 import Miso.String (MisoString)
 
 -------------------------------------------------------------------------------
@@ -18,8 +19,20 @@ import Miso.String (MisoString)
 instance Eq JSVal where
   JSVal ref1 == JSVal ref2 = ref1 == ref2
 
-instance Eq Audio where
-  Audio a1 == Audio a2 = a1 == a2
+instance Eq Media where
+  Media m1 == Media m2 = m1 == m2
+
+-------------------------------------------------------------------------------
+-- SongId
+-------------------------------------------------------------------------------
+
+newtype SongId = SongId { _songId :: MisoString }
+  deriving (Eq, Ord)
+
+makeLenses ''SongId
+
+mkSongId :: MisoString -> SongId
+mkSongId filename = SongId ("audio_" <> filename)
 
 -------------------------------------------------------------------------------
 -- Song
@@ -27,43 +40,29 @@ instance Eq Audio where
 
 data Song = Song 
   { _songFilename :: MisoString
-  , _songAudioId :: MisoString
+  , _songVolume   :: Double
+  , _songDuration :: Maybe DiffTime
   }
-
-instance Eq Song where
-  (Song f1 _) == (Song f2 _) = f1 == f2
+  deriving (Eq)
 
 makeLenses ''Song
 
 mkSong :: MisoString -> Song
-mkSong filename = Song filename ("audio_" <> filename)
-
--------------------------------------------------------------------------------
--- Playing
--------------------------------------------------------------------------------
-
-data Playing = Playing
-  { _playingVolume :: Double
-  , _playingDuration :: DiffTime
-  , _playingSong :: Song
-  } deriving (Eq)
-
-makeLenses ''Playing
-
-mkPlaying :: Song -> Playing
-mkPlaying = Playing 0 0
+mkSong filename = Song filename 1 Nothing
 
 -------------------------------------------------------------------------------
 -- Model
 -------------------------------------------------------------------------------
 
 data Model = Model
-  { _modelPlaying :: Maybe Playing
-  , _modelSongs :: [Song]
+  { _modelPlaying :: Maybe SongId
+  , _modelSongs :: Map SongId Song
   } deriving (Eq)
 
 makeLenses ''Model
 
-mkModel :: [Song] -> Model
-mkModel = Model Nothing
+mkModel :: [MisoString] -> Model
+mkModel filenames = Model Nothing songs
+  where
+    songs = Map.fromList [ (mkSongId f, mkSong f) | f<-filenames]
 
