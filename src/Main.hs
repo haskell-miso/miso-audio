@@ -4,10 +4,10 @@ module Main where
 
 import Control.Monad (forM_, when)
 import Data.Map as Map ((!?), adjust, elems, mapWithKey)
-import Data.Time.Format
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Miso
 import Miso.Lens as Lens
-import Miso.Media
+import Miso.Media (duration, load, Media(..), play, pause)
 import Miso.String (fromMisoStringEither, MisoString, ms)
 
 import Model
@@ -117,12 +117,12 @@ handleUpdate (ActionAskReload sId)  = do
   -- reload the song
   io_ (getElementById (sId^.songId) >>= load . Media)
   -- if the song is the current song, reset modelPlaying
-  mP <- use modelPlaying
-  when (mP == Just sId) $ 
+  mPlaying <- use modelPlaying
+  when (mPlaying == Just sId) $ 
     modelPlaying .= Nothing
 
 handleUpdate (ActionAskVolume str) = 
-  -- try to parse the input to a number
+  -- try to parse a number 
   forM_ (fromMisoStringEither str) $ \vol -> do
     -- find the current song then adjust its volume in the map
     mPlaying <- use modelPlaying

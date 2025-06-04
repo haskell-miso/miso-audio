@@ -4,12 +4,12 @@
 
 module Model where
 
-import Data.Map as Map
+import Data.Map as Map (fromList, Map)
 import Data.Time.Clock (DiffTime)
 import Language.Javascript.JSaddle (JSVal(..))
-import Miso.Lens
-import Miso.Lens.TH
-import Miso.Media
+import Miso.Lens (Lens, lens)
+import Miso.Lens.TH (makeLenses)
+import Miso.Media (Media(..))
 import Miso.String (MisoString)
 
 -------------------------------------------------------------------------------
@@ -17,7 +17,7 @@ import Miso.String (MisoString)
 -------------------------------------------------------------------------------
 
 instance Eq JSVal where
-  JSVal ref1 == JSVal ref2 = ref1 == ref2
+  JSVal v1 == JSVal v2 = v1 == v2
 
 instance Eq Media where
   Media m1 == Media m2 = m1 == m2
