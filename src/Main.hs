@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
@@ -143,12 +144,16 @@ handleUpdate (ActionSetDuration sId t) =
 
 main :: IO ()
 main = run $ do
+
   let model = mkModel thePlaylist
-      app = defaultComponent model handleUpdate handleView
+
+      app :: Component "app" Model Action
+      app = (defaultComponent model handleUpdate handleView)
+              { events = defaultEvents <> mediaEvents
+              , logLevel = DebugAll
+              }
+
   startComponent app
-    { events = defaultEvents <> mediaEvents
-    , logLevel = DebugAll
-    }
 
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
