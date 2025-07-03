@@ -1,11 +1,11 @@
-# miso-audio-test
+# miso-audio
 
 Sample web app with audio, in Haskell, using [Miso](https://haskell-miso.org/).
 
 
 ## Try online
 
-- [https://haskell-miso.github.io/miso-audio-test/](https://haskell-miso.github.io/miso-audio-test/)
+- [https://haskell-miso.github.io/miso-audio/](https://haskell-miso.github.io/miso-audio/)
 
 
 ## Build and run

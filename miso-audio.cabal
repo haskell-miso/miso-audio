@@ -1,5 +1,5 @@
 cabal-version:          3.0
-name:                   miso-audio-test
+name:                   miso-audio
 version:                0.2
 
 executable app
