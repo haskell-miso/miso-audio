@@ -1,4 +1,4 @@
-# miso-audio
+# 🍜 🔊 miso-audio
 
 Sample web app with audio, in Haskell, using [Miso](https://haskell-miso.org/).
 
