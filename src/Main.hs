@@ -1,22 +1,21 @@
+----------------------------------------------------------------------
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-
+----------------------------------------------------------------------
 module Main where
-
+----------------------------------------------------------------------
 import Control.Monad (forM_, when)
 import Data.Map as Map ((!?), adjust, elems, mapWithKey)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+----------------------------------------------------------------------
 import Miso
 import Miso.Lens as Lens
 import Miso.Media (duration, load, Media(..), play, pause)
 import Miso.String (fromMisoStringEither, MisoString, ms)
-
+----------------------------------------------------------------------
 import Model
-
 ----------------------------------------------------------------------
--- parameters
-----------------------------------------------------------------------
-
+-- | Parameters
 thePlaylist :: [MisoString]
 thePlaylist =
   [ "roblox-minecraft-fortnite-video-game-music-299145.mp3"
@@ -24,11 +23,8 @@ thePlaylist =
   , "puzzle-game-bright-casual-video-game-music-249202.mp3"
   , "short.mp3"
   ]
-
 ----------------------------------------------------------------------
--- actions
-----------------------------------------------------------------------
-
+-- | Action
 data Action 
   = ActionAskPlay SongId
   | ActionAskEnded
@@ -36,23 +32,23 @@ data Action
   | ActionAskVolume MisoString
   | ActionAskDuration SongId Media
   | ActionSetDuration SongId Double
-
-----------------------------------------------------------------------
--- view handler
-----------------------------------------------------------------------
-
-handleView :: Model -> View Action
+---------------------------------------------------------------------
+-- | View
+handleView :: Model -> View Model Action
 handleView model = div_ [] 
   [ div_ []
-      [ a_ [ href_ "https://github.com/haskell-miso/miso-audio" ] [ text "source" ]
+      [ a_
+        [ href_ "https://github.com/haskell-miso/miso-audio" ]
+        [ text "source" ]
       , text " - "
-      , a_ [ href_ "https://haskell-miso.github.io/miso-audio/" ] [ text "demo" ]
+      , a_
+        [ href_ "https://haskell-miso.github.io/miso-audio/" ]
+        [ text "demo" ]
       ]
   , ul_ [] (elems $ mapWithKey fmtSong (model^.modelSongs))
   , div_ [] fmtPlaying
   ]
   where
-
     -- format a song
     fmtSong sId s = li_ [] 
         [ audio_ 
@@ -92,13 +88,9 @@ handleView model = div_ []
         _ -> []
 
     fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%02M:%02S")
-
 ----------------------------------------------------------------------
--- update handler
-----------------------------------------------------------------------
-
-handleUpdate :: Action -> Effect Model Action
-
+-- | Update
+handleUpdate :: Action -> Transition Model Action
 handleUpdate (ActionAskPlay sId) = do
   -- pause the current song, if any
   mPlaying <- use modelPlaying
@@ -110,10 +102,8 @@ handleUpdate (ActionAskPlay sId) = do
       modelPlaying .= Just sId
       io_ (getElementById (sId^.songId) >>= play . Media)
     else modelPlaying .= Nothing
-
 handleUpdate ActionAskEnded = 
   modelPlaying .= Nothing
-
 handleUpdate (ActionAskReload sId)  = do
   -- reload the song
   io_ (getElementById (sId^.songId) >>= load . Media)
@@ -121,7 +111,6 @@ handleUpdate (ActionAskReload sId)  = do
   mPlaying <- use modelPlaying
   when (mPlaying == Just sId) $ 
     modelPlaying .= Nothing
-
 handleUpdate (ActionAskVolume str) = 
   -- try to parse a number 
   forM_ (fromMisoStringEither str) $ \vol -> do
@@ -129,28 +118,21 @@ handleUpdate (ActionAskVolume str) =
     mPlaying <- use modelPlaying
     forM_ mPlaying $ \pId ->
       modelSongs %= adjust (Lens.set songVolume vol) pId
-
 handleUpdate (ActionAskDuration sId media) =
   -- get media duration then set model
   io (ActionSetDuration sId <$> duration media)
-
 handleUpdate (ActionSetDuration sId t) =
   -- find the song, in the map, and set its duration
   modelSongs %= adjust (Lens.set songDuration (Just $ realToFrac t)) sId
-
 ----------------------------------------------------------------------
--- main
-----------------------------------------------------------------------
-
+-- | Main
 main :: IO ()
-main = run $ do
-  let model = mkModel thePlaylist
-  startComponent (component model handleUpdate handleView)
-    { events = defaultEvents <> mediaEvents
-    , logLevel = DebugAll
-    }
-
+main = run $ startApp (component (mkModel thePlaylist) handleUpdate handleView)
+  { events = defaultEvents <> mediaEvents
+  , logLevel = DebugAll
+  }
+----------------------------------------------------------------------
 #ifdef WASM
 foreign export javascript "hs_start" main :: IO ()
 #endif
-
+----------------------------------------------------------------------
