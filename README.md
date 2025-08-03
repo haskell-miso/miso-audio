@@ -5,7 +5,7 @@ Sample web app with audio, in Haskell, using [Miso](https://haskell-miso.org/).
 
 ## Try online
 
-- [https://haskell-miso.github.io/miso-audio/](https://haskell-miso.github.io/miso-audio/)
+- [https://audio.haskell-miso.org/](https://audio.haskell-miso.org/)
 
 
 ## Build and run
