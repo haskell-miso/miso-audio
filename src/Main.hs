@@ -9,9 +9,11 @@ import Data.Map as Map ((!?), adjust, elems, mapWithKey)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 ----------------------------------------------------------------------
 import Miso
+import Miso.Html
+import Miso.Html.Property
 import Miso.Lens as Lens
 import Miso.Media (duration, load, Media(..), play, pause)
-import Miso.String (fromMisoStringEither, MisoString, ms)
+import Miso.String (fromMisoStringEither)
 ----------------------------------------------------------------------
 import Model
 ----------------------------------------------------------------------
