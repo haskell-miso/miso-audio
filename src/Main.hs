@@ -38,16 +38,7 @@ data Action
 -- | View
 handleView :: Model -> View Model Action
 handleView model = div_ [] 
-  [ div_ []
-      [ a_
-        [ href_ "https://github.com/haskell-miso/miso-audio" ]
-        [ text "source" ]
-      , text " - "
-      , a_
-        [ href_ "https://haskell-miso.github.io/miso-audio/" ]
-        [ text "demo" ]
-      ]
-  , ul_ [] (elems $ mapWithKey fmtSong (model^.modelSongs))
+  [ ul_ [] (elems $ mapWithKey fmtSong (model^.modelSongs))
   , div_ [] fmtPlaying
   ]
   where
