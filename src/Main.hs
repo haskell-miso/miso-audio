@@ -83,7 +83,7 @@ handleView model = vfrag
     fmtDuration = maybe "" (ms . formatTime defaultTimeLocale "%02M:%02S")
 ----------------------------------------------------------------------
 -- | Update
-handleUpdate :: Action -> Transition Model Action
+handleUpdate :: Action -> Effect parent Model Action
 handleUpdate (ActionAskPlay sId) = do
   -- pause the current song, if any
   mPlaying <- use modelPlaying
