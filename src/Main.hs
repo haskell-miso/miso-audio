@@ -120,7 +120,7 @@ handleUpdate (ActionSetDuration sId t) =
 ----------------------------------------------------------------------
 -- | Main
 main :: IO ()
-main = run $ startApp (defaultEvents <> mediaEvents) (component (mkModel thePlaylist) handleUpdate handleView)
+main = startApp (defaultEvents <> mediaEvents) (component (mkModel thePlaylist) handleUpdate handleView)
   { logLevel = DebugAll
   }
 ----------------------------------------------------------------------
