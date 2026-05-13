@@ -37,7 +37,7 @@ data Action
 ---------------------------------------------------------------------
 -- | View
 handleView :: Model -> View Model Action
-handleView model = div_ [] 
+handleView model = vfrag
   [ ul_ [] (elems $ mapWithKey fmtSong (model^.modelSongs))
   , div_ [] fmtPlaying
   ]
